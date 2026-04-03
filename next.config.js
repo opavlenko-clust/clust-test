@@ -9,6 +9,18 @@ const { withSentryConfig } = require('@sentry/nextjs')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  webpack: (config, { nextRuntime }) => {
+    // Fix @clerk/shared #crypto and #safe-node-apis Edge Function errors on Vercel
+    // by ensuring edge-light package conditions resolve to Edge-compatible modules
+    if (nextRuntime === 'edge') {
+      config.resolve.conditionNames = [
+        'edge-light',
+        'worker',
+        ...(config.resolve.conditionNames || []),
+      ]
+    }
+    return config
+  },
   async headers() {
     return [
       {
