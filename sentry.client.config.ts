@@ -1,0 +1,2 @@
+// Sentry client config
+export {};
