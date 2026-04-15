@@ -1,6 +1,6 @@
 // app/api/admin/feature-agent/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { createClient } from '@/lib/supabase/server'
 import { ai, MODELS } from '@/lib/ai'
 import { withRateLimit } from '@/lib/rate-limit'
 import { APP_CONFIG } from '@/config/app'
@@ -8,12 +8,13 @@ import { APP_CONFIG } from '@/config/app'
 const SYSTEM_PROMPT = `
 Ти — Feature Agent для продукту "${APP_CONFIG.name}".
 
-Стек: Next.js 14, Supabase, Clerk, Stripe, OpenRouter, Tailwind CSS, TypeScript strict.
+Стек: Next.js 15, Supabase (auth + DB), Stripe, OpenRouter AI, Tailwind CSS, TypeScript strict.
+Auth: Supabase — роль зберігається в user.user_metadata.role ('admin' | 'user').
 
 Правила:
 1. Завжди уточнюй деталі через питання — не більше 3 питань за раз
 2. Після отримання деталей — покажи чіткий план змін (файли, ендпоінти, тести)
-3. Закінчуй план словом "Підтверджуєш?" 
+3. Закінчуй план словом "Підтверджуєш?"
 4. Ніколи не починай генерацію коду без явного підтвердження
 5. Будь конкретним — назви файлів, назви функцій, назви таблиць БД
 
@@ -22,8 +23,9 @@ READY_TO_DEPLOY
 `
 
 export const POST = withRateLimit(async (req: NextRequest) => {
-  const { sessionClaims } = await auth()
-  if (sessionClaims?.metadata?.role !== 'admin') {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || user.user_metadata?.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

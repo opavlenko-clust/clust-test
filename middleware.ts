@@ -6,6 +6,8 @@ const PUBLIC_PATHS = [
   '/sign-up',
   '/setup',
   '/auth/callback',
+  '/api/setup',
+  '/api/webhooks',
 ]
 
 export async function middleware(request: NextRequest) {

@@ -1,12 +1,12 @@
 // app/admin/dashboard/page.tsx
-import { auth } from '@clerk/nextjs/server'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 export default async function AdminDashboard() {
-  const { sessionClaims } = await auth()
-  const role = sessionClaims?.metadata?.role as string
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (role !== 'admin') redirect('/dashboard')
+  if (!user || user.user_metadata?.role !== 'admin') redirect('/dashboard')
 
   return (
     <div className="p-8">

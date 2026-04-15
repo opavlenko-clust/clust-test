@@ -12,10 +12,10 @@ export const ai = new OpenAI({
 
 // Моделі для різних задач
 export const MODELS = {
-  fast: 'google/gemini-flash-1.5',       // Швидко, дешево
-  smart: 'anthropic/claude-3.5-sonnet',  // Складні задачі
-  vision: 'google/gemini-pro-vision',    // Аналіз зображень
-  code: 'anthropic/claude-3.5-sonnet',   // Генерація коду
+  fast: 'anthropic/claude-3.5-haiku',    // Швидко, дешево
+  smart: 'anthropic/claude-sonnet-4.6',  // Складні задачі
+  vision: 'anthropic/claude-sonnet-4.6', // Аналіз зображень
+  code: 'anthropic/claude-sonnet-4.6',   // Генерація коду
 }
 
 // Базова функція з fallback

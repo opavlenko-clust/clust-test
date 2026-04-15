@@ -9,18 +9,6 @@ const { withSentryConfig } = require('@sentry/nextjs')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  webpack: (config, { nextRuntime }) => {
-    // Fix @clerk/shared #crypto and #safe-node-apis Edge Function errors on Vercel
-    // by ensuring edge-light package conditions resolve to Edge-compatible modules
-    if (nextRuntime === 'edge') {
-      config.resolve.conditionNames = [
-        'edge-light',
-        'worker',
-        ...(config.resolve.conditionNames || []),
-      ]
-    }
-    return config
-  },
   async headers() {
     return [
       {
@@ -38,11 +26,11 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com https://clerk.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self'",
-              "connect-src 'self' https://api.stripe.com https://clerk.com https://openrouter.ai",
+              `connect-src 'self' https://api.stripe.com https://openrouter.ai https://*.supabase.co${process.env.NODE_ENV === 'development' ? ' http://127.0.0.1:54321' : ''}`,
               "frame-src https://js.stripe.com https://hooks.stripe.com",
             ].join('; '),
           },
