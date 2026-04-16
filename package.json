@@ -23,7 +23,6 @@
     "helmet": "^7.1.0",
     "lucide-react": "^0.363.0",
     "next": "^15.0.0",
-    "openai": "^4.0.0",
     "posthog-js": "^1.96.0",
     "react": "^18",
     "react-dom": "^18",
