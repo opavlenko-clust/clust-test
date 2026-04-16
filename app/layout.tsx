@@ -1,8 +1,17 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-inter',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'App',
-  description: 'MVP Template',
+  description: 'App',
 }
 
 export default function RootLayout({
@@ -11,8 +20,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className={inter.variable}>
+      <body className={`${inter.className} bg-background text-text-primary antialiased min-h-screen`}>
+        {children}
+      </body>
     </html>
   )
 }
