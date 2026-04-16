@@ -1,12 +1,3 @@
-const withPWA = require('next-pwa')({
-  dest: 'public',
-  disable: process.env.NODE_ENV === 'development',
-  register: true,
-  skipWaiting: true,
-})
-
-const { withSentryConfig } = require('@sentry/nextjs')
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
@@ -40,11 +31,4 @@ const nextConfig = {
   },
 }
 
-module.exports = withSentryConfig(
-  withPWA(nextConfig),
-  {
-    silent: true,
-    org: process.env.SENTRY_ORG,
-    project: process.env.SENTRY_PROJECT,
-  }
-)
+module.exports = nextConfig

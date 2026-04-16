@@ -16,34 +16,32 @@
     "test:smoke": "playwright test tests/smoke/"
   },
   "dependencies": {
-    "next": "^15.0.0",
-    "react": "^18",
-    "react-dom": "^18",
+    "@stripe/stripe-js": "^3.0.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
-    "stripe": "^14.0.0",
-    "@stripe/stripe-js": "^3.0.0",
-    "openai": "^4.0.0",
-    "resend": "^3.0.0",
-    "zod": "^3.22.0",
-    "next-pwa": "^5.6.0",
-    "posthog-js": "^1.96.0",
-    "@sentry/nextjs": "^7.0.0",
+    "clsx": "^2.1.0",
     "helmet": "^7.1.0",
     "lucide-react": "^0.363.0",
+    "next": "^15.0.0",
+    "openai": "^4.0.0",
+    "posthog-js": "^1.96.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "resend": "^3.0.0",
+    "stripe": "^14.0.0",
     "tailwindcss": "^3.4.0",
-    "clsx": "^2.1.0"
+    "zod": "^3.22.0"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@playwright/test": "^1.42.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "autoprefixer": "^10.0.1",
     "eslint": "^8",
     "eslint-config-next": "14.2.0",
     "eslint-plugin-security": "^2.1.0",
-    "@playwright/test": "^1.42.0",
-    "autoprefixer": "^10.0.1",
-    "postcss": "^8"
+    "postcss": "^8",
+    "typescript": "^5"
   }
 }
