@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const maxDuration = 60 // Vercel Pro required
+export const maxDuration = 300 // Vercel Pro: up to 300s
 import { createClient } from '@/lib/supabase/server'
 import { ai, MODELS } from '@/lib/ai'
 import { createBranch, upsertFile, deleteFile } from '@/lib/github'
@@ -54,7 +54,21 @@ Rules:
 - TypeScript strict: always use explicit types, NEVER leave implicit "any" (no untyped function params)
 - Never modify infrastructure files unless explicitly asked: middleware.ts, lib/supabase/server.ts, lib/supabase/client.ts, lib/ai.ts, lib/github.ts, next.config.js
 - Every new page/route that calls Supabase or does redirects must export: export const dynamic = 'force-dynamic'
+- When a feature needs a new DB table or column, include a migration file: supabase/migrations/<timestamp>_<name>.sql (timestamp = unix seconds). The migration will be auto-run against Supabase. Always add IF NOT EXISTS to CREATE TABLE.
 - When writing setAll cookie handlers, always type the param: (cookiesToSet: { name: string; value: string; options: CookieOptions }[])
+
+UI Style (minimalist — Tailwind only, no component libraries):
+- White background, generous whitespace
+- text-gray-900 headings, text-gray-500 secondary, blue-600 accent
+- Borders: border border-gray-200 — subtle, never decorative
+- rounded-lg for cards/inputs, rounded for buttons
+- No shadows except shadow-sm on cards
+- Button primary: bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50
+- Button secondary: bg-gray-100 text-gray-800 px-4 py-2 rounded text-sm hover:bg-gray-200
+- Input: border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500
+- Card: border border-gray-200 rounded-lg p-6 bg-white
+- Page layout: max-w-3xl mx-auto p-8
+- Typography: text-xl font-bold (page title), text-base font-semibold (section), text-sm (body), text-sm text-gray-500 (muted)
 `
 
 type FileChange = {
@@ -115,9 +129,44 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Auto-run Supabase migrations if any SQL files were generated
+  const migrations = plan.files.filter(
+    f => f.path.startsWith('supabase/migrations/') && f.path.endsWith('.sql') && f.action !== 'delete'
+  )
+
+  let migrationsRun = 0
+  const migrationErrors: string[] = []
+
+  if (migrations.length > 0) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1]
+    const managementToken = process.env.SUPABASE_MANAGEMENT_TOKEN
+
+    if (projectRef && managementToken) {
+      for (const migration of migrations) {
+        const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${managementToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: migration.content }),
+        })
+        if (res.ok) {
+          migrationsRun++
+        } else {
+          const err = await res.json().catch(() => ({ message: res.statusText })) as { message?: string }
+          migrationErrors.push(`${migration.path}: ${err.message ?? res.statusText}`)
+        }
+      }
+    }
+  }
+
   return NextResponse.json({
     branch: plan.branch,
     commitMessage: plan.commitMessage,
     fileCount: plan.files.length,
+    migrationsRun,
+    migrationErrors,
   })
 }

@@ -9,6 +9,12 @@ type Message = {
 
 type Stage = 'chat' | 'confirm' | 'deploying' | 'deployed'
 
+type Step = {
+  label: string
+  status: 'pending' | 'active' | 'done' | 'error'
+  detail?: string
+}
+
 export default function FeatureAgent() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -22,13 +28,36 @@ export default function FeatureAgent() {
   const [branch, setBranch] = useState('')
   const [stagingUrl, setStagingUrl] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
-  const [deployStatus, setDeployStatus] = useState('')
+  const [steps, setSteps] = useState<Step[]>([])
+  const [buildElapsed, setBuildElapsed] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, steps])
+
+  // Build elapsed timer
+  useEffect(() => {
+    if (stage === 'deploying') {
+      setBuildElapsed(0)
+      timerRef.current = setInterval(() => setBuildElapsed(s => s + 1), 1000)
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [stage])
+
+  function setStep(label: string, status: Step['status'], detail?: string) {
+    setSteps(prev => {
+      const idx = prev.findIndex(s => s.label === label)
+      if (idx === -1) return [...prev, { label, status, detail }]
+      const next = [...prev]
+      next[idx] = { label, status, detail }
+      return next
+    })
+  }
 
   // Poll Vercel for preview URL after branch is created
   useEffect(() => {
@@ -40,6 +69,7 @@ export default function FeatureAgent() {
 
       if (data.state === 'NO_VERCEL') {
         clearInterval(pollRef.current!)
+        setStep('Vercel build', 'done', 'Vercel не підключено — код на GitHub')
         setGithubUrl(data.githubUrl)
         setStage('deployed')
         setMessages(prev => [
@@ -48,6 +78,7 @@ export default function FeatureAgent() {
         ])
       } else if (data.state === 'READY' && data.url) {
         clearInterval(pollRef.current!)
+        setStep('Vercel build', 'done', data.url)
         setStagingUrl(data.url)
         setStage('deployed')
         setMessages(prev => [
@@ -56,13 +87,15 @@ export default function FeatureAgent() {
         ])
       } else if (data.state === 'ERROR') {
         clearInterval(pollRef.current!)
+        setStep('Vercel build', 'error', data.errorMessage ?? 'Build failed')
         setStage('confirm')
         setMessages(prev => [
           ...prev,
           { role: 'assistant', content: '❌ Деплой впав. Спробуй ще раз або уточни задачу.' },
         ])
       } else {
-        setDeployStatus(data.state === 'BUILDING' ? 'Vercel будує...' : 'Очікуємо деплой...')
+        const label = data.state === 'BUILDING' ? 'Vercel будує...' : 'Очікуємо Vercel...'
+        setStep('Vercel build', 'active', label)
       }
     }, 4000)
 
@@ -95,7 +128,12 @@ export default function FeatureAgent() {
 
   async function handleConfirm() {
     setStage('deploying')
-    setDeployStatus('Генерую код...')
+    setSteps([
+      { label: 'Генерую код', status: 'active' },
+      { label: 'Пушу в GitHub', status: 'pending' },
+      { label: 'Міграції БД', status: 'pending' },
+      { label: 'Vercel build', status: 'pending' },
+    ])
     setLoading(true)
 
     try {
@@ -108,16 +146,29 @@ export default function FeatureAgent() {
       const data = await res.json()
 
       if (!res.ok) {
+        setStep('Генерую код', 'error', data.error)
         setStage('confirm')
         setMessages(prev => [
           ...prev,
-          { role: 'assistant', content: `❌ Помилка: ${data.error}` },
+          { role: 'assistant', content: `❌ Помилка генерації: ${data.error}` },
         ])
         return
       }
 
+      setStep('Генерую код', 'done', `${data.fileCount} файл(ів)`)
+      setStep('Пушу в GitHub', 'done', data.branch)
+
+      if (data.migrationsRun > 0) {
+        setStep('Міграції БД', 'done', `${data.migrationsRun} запущено`)
+      } else if (data.migrationErrors?.length > 0) {
+        setStep('Міграції БД', 'error', data.migrationErrors[0])
+      } else {
+        setStep('Міграції БД', 'done', 'немає міграцій')
+      }
+
+      setStep('Vercel build', 'active', 'Очікуємо...')
+
       setBranch(data.branch)
-      setDeployStatus('Код запушено. Чекаємо Vercel...')
       setMessages(prev => [
         ...prev,
         {
@@ -125,6 +176,9 @@ export default function FeatureAgent() {
           content: `🔀 Гілка \`${data.branch}\` створена (${data.fileCount} файл(ів)). Vercel будує preview...`,
         },
       ])
+    } catch {
+      setStep('Генерую код', 'error', 'Мережева помилка')
+      setStage('confirm')
     } finally {
       setLoading(false)
     }
@@ -146,6 +200,7 @@ export default function FeatureAgent() {
       setStage('chat')
       setBranch('')
       setStagingUrl('')
+      setSteps([])
       setLoading(false)
     }
   }
@@ -166,8 +221,16 @@ export default function FeatureAgent() {
       setStage('chat')
       setBranch('')
       setStagingUrl('')
+      setSteps([])
       setLoading(false)
     }
+  }
+
+  const stepIcon = (s: Step['status']) => {
+    if (s === 'done') return <span className="text-green-500">✓</span>
+    if (s === 'error') return <span className="text-red-500">✗</span>
+    if (s === 'active') return <span className="animate-spin inline-block">⟳</span>
+    return <span className="text-gray-300">○</span>
   }
 
   return (
@@ -188,11 +251,34 @@ export default function FeatureAgent() {
           </div>
         ))}
 
-        {(loading || stage === 'deploying') && (
+        {loading && stage !== 'deploying' && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg px-4 py-2 text-sm text-gray-500">
-              {stage === 'deploying' ? deployStatus || 'Деплоюємо...' : 'Думаю...'}
+            <div className="bg-gray-100 rounded-lg px-4 py-2 text-sm text-gray-500">Думаю...</div>
+          </div>
+        )}
+
+        {/* Deploy progress block */}
+        {(stage === 'deploying' || (stage === 'deployed' && steps.length > 0)) && steps.length > 0 && (
+          <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-semibold text-gray-700">Прогрес деплою</span>
+              {stage === 'deploying' && (
+                <span className="text-xs text-gray-400">{buildElapsed}s</span>
+              )}
             </div>
+            {steps.map((step) => (
+              <div key={step.label} className="flex items-start gap-2 text-sm">
+                <span className="mt-0.5 w-4 shrink-0 text-center">{stepIcon(step.status)}</span>
+                <div>
+                  <span className={step.status === 'error' ? 'text-red-600' : step.status === 'done' ? 'text-gray-900' : 'text-gray-500'}>
+                    {step.label}
+                  </span>
+                  {step.detail && (
+                    <span className="ml-2 text-xs text-gray-400 break-all">{step.detail}</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -252,12 +338,12 @@ export default function FeatureAgent() {
             onKeyDown={e => e.key === 'Enter' && sendMessage()}
             placeholder={stage === 'deployed' ? 'Доповни або опиши наступну зміну...' : 'Опиши що треба зробити...'}
             disabled={loading}
-            className="flex-1 border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           />
           <button
             onClick={sendMessage}
             disabled={loading || !input.trim()}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+            className="bg-blue-600 text-white px-4 py-2 rounded text-sm disabled:opacity-50"
           >
             Надіслати
           </button>
